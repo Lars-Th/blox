@@ -1,10 +1,13 @@
+// src/components/Block.js
+
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import * as Animatable from 'react-native-animatable';
+import { getBlockStyle, getTextColor } from './blockStyles';
 
-const Block = ({ value }) => {
-  if (value === null || value === undefined) {
-    return null; // Eller returnera en tom vy om du vill
+const Block = React.memo(({ value }) => {
+  if (value === null || value === undefined || isNaN(value)) {
+    return null;
   }
 
   const blockStyles = [
@@ -14,66 +17,14 @@ const Block = ({ value }) => {
 
   return (
     <Animatable.View
-      animation="slideInDown"
-      duration={1000
-        
-      }
+      animation="fadeIn"
+      duration={300}
       style={blockStyles}
     >
       <Text style={[styles.text, { color: getTextColor(value) }]}>{value}</Text>
     </Animatable.View>
   );
-};
-
-
-
-const getBlockStyle = (value) => {
-  let backgroundColor = '#eee4da';
-
-  switch (value) {
-    case 2:
-      backgroundColor = '#7BC9E2';
-      break;
-    case 4:
-      backgroundColor = '#FAD02E';
-      break;
-    case 8:
-      backgroundColor = '#EBA5A5';
-      break;
-    case 16:
-      backgroundColor = '#A1E3A1';
-      break;
-    case 32:
-      backgroundColor = '#F7C46A';
-      break;
-    case 64:
-      backgroundColor = '#D9E1A1';
-      break;
-    case 128:
-      backgroundColor = '#85D1ED';
-      break;
-    case 256:
-      backgroundColor = '#F5A3B3';
-      break;
-    case 512:
-      backgroundColor = '#A6E1F4';
-      break;
-    case 1024:
-      backgroundColor = '#F5D97C';
-      break;
-    case 2048:
-      backgroundColor = '#EBD2A6';
-      break;
-  }
-
-  return {
-    backgroundColor,
-  };
-};
-
-const getTextColor = (value) => {
-  return value > 4 ? '#f9f6f2' : '#776e65';
-};
+});
 
 const styles = StyleSheet.create({
   block: {
@@ -82,6 +33,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   text: {
     fontSize: 18,

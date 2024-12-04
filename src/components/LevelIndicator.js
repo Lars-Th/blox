@@ -1,9 +1,11 @@
+// src/components/LevelIndicator.js
+
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const LevelIndicator = ({ levelsAchieved }) => {
-  const levels = [32, 64, 128, 256, 512, 1024, 2048];
+  const levels = [256, 512, 1024, 2048];
 
   return (
     <View style={styles.container}>

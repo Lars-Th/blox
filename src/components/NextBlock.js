@@ -1,5 +1,8 @@
+// src/components/NextBlock.js
+
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { getBlockStyle, getTextColor } from './blockStyles';
 
 const NextBlock = ({ value, isCurrent }) => {
   const blockStyles = [
@@ -15,43 +18,18 @@ const NextBlock = ({ value, isCurrent }) => {
   );
 };
 
-const getBlockStyle = (value) => {
-  let backgroundColor = '#eee4da';
-
-  switch (value) {
-    case 2:
-      backgroundColor = '#eee4da';
-      break;
-    case 4:
-      backgroundColor = '#ede0c8';
-      break;
-    // Lägg till fler fall för andra värden om du vill
-    default:
-      backgroundColor = '#3c3a32';
-      break;
-  }
-
-  return {
-    backgroundColor,
-  };
-};
-
-const getTextColor = (value) => {
-  return value > 4 ? '#f9f6f2' : '#776e65';
-};
-
 const styles = StyleSheet.create({
   block: {
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 5, // Samma radie som blocken
+    borderRadius: 5,
     marginHorizontal: 10,
   },
   currentBlock: {
     width: 50,
     height: 50,
-    borderWidth: 2, // Lägg till en ram
-    borderColor: '#f2b179', // Matchande färg
+    borderWidth: 2,
+    borderColor: '#f2b179',
   },
   nextBlock: {
     width: 50,
@@ -63,4 +41,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
 export default NextBlock;
