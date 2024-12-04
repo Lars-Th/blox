@@ -1,6 +1,6 @@
 // src/screens/GameScreen.js
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ImageBackground } from 'react-native';
 import GameBoard from '../components/GameBoard';
 import NextBlock from '../components/NextBlock';
@@ -11,12 +11,12 @@ const GameScreen = ({ navigation }) => {
   const [score, setScore] = useState(0);
   const [levelsAchieved, setLevelsAchieved] = useState([]);
 
-  // Starta nivåerna vid 256
   const levelsToCheck = [256, 512, 1024, 2048];
 
-  // Hantera nästa block
   const [currentBlockValue, setCurrentBlockValue] = useState(generateBlockValue());
   const [nextBlockValue, setNextBlockValue] = useState(generateBlockValue());
+
+  const gameBoardRef = useRef(null);
 
   function generateBlockValue() {
     const blockTypes = [2, 4, 8, 16, 32];
@@ -34,6 +34,12 @@ const GameScreen = ({ navigation }) => {
     }
   };
 
+  const handleUndo = () => {
+    if (gameBoardRef.current) {
+      gameBoardRef.current.undoMove();
+    }
+  };
+
   return (
     <ImageBackground
       source={require('../assets/backgroundGame.jpg')}
@@ -47,22 +53,27 @@ const GameScreen = ({ navigation }) => {
           >
             <Ionicons name="arrow-back-circle-outline" size={24} color="#fff" />
           </TouchableOpacity>
+          <Text style={styles.scoreText}>{score} poäng</Text>
         </View>
-        <Text style={styles.scoreText}>{score} poäng</Text>
         {/* Visa nästa block */}
         <View style={styles.dropContainer}>
           <NextBlock value={currentBlockValue} isCurrent />
           <NextBlock value={nextBlockValue} />
         </View>
+        {/* Ångra-knapp */}
+        <TouchableOpacity style={styles.undoButton} onPress={handleUndo}>
+          <Text style={styles.undoButtonText}>Ångra</Text>
+        </TouchableOpacity>
         <View style={styles.gameBoardContainer}>
           <GameBoard
+            ref={gameBoardRef}
             currentBlockValue={currentBlockValue}
             onBlockPlaced={handleBlockPlaced}
             setScore={setScore}
             navigation={navigation}
           />
         </View>
-        {/* Flytta nivåindikatorn hit */}
+        {/* Nivåindikator */}
         <Text style={styles.levelText}>Nivå: {levelsAchieved.length + 1}</Text>
         <View style={styles.levelIndicatorContainer}>
           <LevelIndicator levelsAchieved={levelsAchieved} />
@@ -82,7 +93,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 50,
     paddingHorizontal: 20,
@@ -118,6 +129,18 @@ const styles = StyleSheet.create({
   levelIndicatorContainer: {
     marginTop: 10,
     marginBottom: 20,
+  },
+  undoButton: {
+    backgroundColor: '#f2b179',
+    padding: 10,
+    borderRadius: 5,
+    alignSelf: 'center',
+    marginVertical: 10,
+  },
+  undoButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

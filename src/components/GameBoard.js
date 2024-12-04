@@ -1,11 +1,11 @@
 // src/components/GameBoard.js
 
-import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useRef, useImperativeHandle, forwardRef } from 'react';
+import { View, StyleSheet, TouchableOpacity, Alert, Animated, Text } from 'react-native';
 import Block from './Block';
 
-const GameBoard = ({ onBlockPlaced, setScore, currentBlockValue }) => {
-  const rows = 7; // Ändrat till 7 rader
+const GameBoard = forwardRef(({ onBlockPlaced, setScore, currentBlockValue }, ref) => {
+  const rows = 7;
   const columns = 5;
 
   const [grid, setGrid] = useState(
@@ -14,9 +14,24 @@ const GameBoard = ({ onBlockPlaced, setScore, currentBlockValue }) => {
       .map(() => Array(columns).fill(null))
   );
 
-  const [lastPlacedColumn, setLastPlacedColumn] = useState(null);
-  const [blockTypes, setBlockTypes] = useState([2, 4, 8, 16, 32]);
-  const [level, setLevel] = useState(1);
+  const [history, setHistory] = useState([]);
+  const [animations, setAnimations] = useState([]);
+  const [chainMultiplier, setChainMultiplier] = useState(1);
+
+  // Exponera undoMove via ref
+  useImperativeHandle(ref, () => ({
+    undoMove,
+  }));
+
+  const undoMove = () => {
+    if (history.length > 0) {
+      const previousGrid = history[history.length - 1];
+      setGrid(previousGrid);
+      setHistory((prevHistory) => prevHistory.slice(0, -1));
+    } else {
+      Alert.alert('Inga fler drag att ångra!');
+    }
+  };
 
   const applyGravity = (currentGrid) => {
     const newGrid = currentGrid.map((row) => row.slice());
@@ -38,18 +53,21 @@ const GameBoard = ({ onBlockPlaced, setScore, currentBlockValue }) => {
   };
 
   const addBlockToColumn = (columnIndex) => {
+    // Spara nuvarande tillstånd i historiken
+    setHistory((prevHistory) => [...prevHistory, grid.map((row) => row.slice())]);
+
     let newGrid = grid.map((row) => row.slice());
 
     let placed = false;
 
-    for (let row = rows - 1; row >= 0; row--) {
+    for (let row = 0; row < rows; row++) {
       if (newGrid[row][columnIndex] === null) {
         const nextValue = currentBlockValue;
         newGrid[row][columnIndex] = {
           value: nextValue,
+          isNew: true,
         };
         placed = true;
-        setLastPlacedColumn(columnIndex);
         break;
       }
     }
@@ -59,81 +77,68 @@ const GameBoard = ({ onBlockPlaced, setScore, currentBlockValue }) => {
       return;
     }
 
-    let result = { merged: true, grid: newGrid };
-    while (result.merged) {
-      result = checkForMerges(result.grid);
+    let merging = true;
+    let localChainMultiplier = 1;
+
+    while (merging) {
+      newGrid = applyGravity(newGrid);
+      const result = checkForMerges(newGrid);
       newGrid = result.grid;
+      merging = result.merged;
+
+      if (merging) {
+        localChainMultiplier++;
+      }
     }
 
+    setChainMultiplier(localChainMultiplier);
     setGrid(newGrid);
 
     const maxValue = getMaxValue(newGrid);
     onBlockPlaced(maxValue);
-
-    // Kontrollera om nivån ska uppgraderas
-    if (maxValue >= 256) {
-      upgradeLevel();
-    }
-  };
-
-  const findMatchingNeighbors = (grid, row, col) => {
-    const currentVal = grid[row][col].value;
-    const matchingBlocks = [{ row, col }];
-    const directions = [
-      { row: 1, col: 0 },  // Under
-      { row: 0, col: -1 }, // Vänster
-      { row: 0, col: 1 },  // Höger
-    ];
-
-    directions.forEach((dir) => {
-      const newRow = row + dir.row;
-      const newCol = col + dir.col;
-
-      if (
-        newRow >= 0 && newRow < rows &&
-        newCol >= 0 && newCol < columns &&
-        grid[newRow][newCol] !== null &&
-        grid[newRow][newCol].value === currentVal
-      ) {
-        matchingBlocks.push({ row: newRow, col: newCol });
-      }
-    });
-
-    return matchingBlocks;
   };
 
   const checkForMerges = (currentGrid) => {
     let merged = false;
     let newGrid = currentGrid.map((row) => row.slice());
-    let anyMerge = false;
 
-    for (let row = rows - 1; row >= 0; row--) {
+    const visited = Array(rows)
+      .fill()
+      .map(() => Array(columns).fill(false));
+
+    for (let row = 0; row < rows; row++) {
       for (let col = 0; col < columns; col++) {
-        if (newGrid[row][col] !== null) {
-          const matchingBlocks = findMatchingNeighbors(newGrid, row, col);
+        if (newGrid[row][col] !== null && !visited[row][col]) {
+          const matchingBlocks = findConnectedBlocks(newGrid, row, col, visited);
 
           if (matchingBlocks.length > 1) {
             merged = true;
-            anyMerge = true;
 
-            const multiplier = matchingBlocks.length;
-            const newValue = newGrid[row][col].value * Math.pow(2, multiplier - 1);
+            const newValue =
+              newGrid[row][col].value * Math.pow(2, matchingBlocks.length - 1);
 
-            newGrid[row][col].value = newValue;
+            // Lägg till animation för sammanslagning
+            setAnimations((prev) => [
+              ...prev,
+              { type: 'merge', blocks: matchingBlocks },
+            ]);
 
+            // Radera alla matchande block
             matchingBlocks.forEach(({ row: r, col: c }) => {
-              if (!(r === row && c === col)) {
-                newGrid[r][c] = null;
-              }
+              newGrid[r][c] = null;
             });
 
-            // Om det finns ett block under som matchade, droppa ned blocket en position
-            if (matchingBlocks.some(b => b.row === row + 1)) {
-              if (row + 1 < rows) {
-                newGrid[row + 1][col] = newGrid[row][col];
-                newGrid[row][col] = null;
-                row++;
-              }
+            // Placera det nya blocket längst ned i kolumnen
+            const targetCol = col;
+            let targetRow = rows - 1;
+            while (targetRow >= 0 && newGrid[targetRow][targetCol] !== null) {
+              targetRow--;
+            }
+            if (targetRow >= 0) {
+              newGrid[targetRow][targetCol] = { value: newValue };
+            } else {
+              // Om kolumnen är full, placera blocket på högsta möjliga position
+              newGrid[0][targetCol] = { value: newValue };
             }
 
             setScore((prevScore) => prevScore + newValue);
@@ -142,11 +147,38 @@ const GameBoard = ({ onBlockPlaced, setScore, currentBlockValue }) => {
       }
     }
 
-    if (anyMerge) {
-      newGrid = applyGravity(newGrid);
+    return { merged, grid: newGrid };
+  };
+
+  const findConnectedBlocks = (grid, row, col, visited) => {
+    const stack = [{ row, col }];
+    const value = grid[row][col].value;
+    const matchingBlocks = [];
+
+    while (stack.length > 0) {
+      const { row: r, col: c } = stack.pop();
+
+      if (
+        r >= 0 &&
+        r < rows &&
+        c >= 0 &&
+        c < columns &&
+        !visited[r][c] &&
+        grid[r][c] !== null &&
+        grid[r][c].value === value
+      ) {
+        visited[r][c] = true;
+        matchingBlocks.push({ row: r, col: c });
+
+        // Kolla alla riktningar
+        stack.push({ row: r + 1, col: c }); // Ner
+        stack.push({ row: r - 1, col: c }); // Upp
+        stack.push({ row: r, col: c - 1 }); // Vänster
+        stack.push({ row: r, col: c + 1 }); // Höger
+      }
     }
 
-    return { merged: anyMerge, grid: newGrid };
+    return matchingBlocks;
   };
 
   const getMaxValue = (currentGrid) => {
@@ -161,43 +193,32 @@ const GameBoard = ({ onBlockPlaced, setScore, currentBlockValue }) => {
     return max;
   };
 
-  const upgradeLevel = () => {
-    setBlockTypes((prevTypes) => {
-      const newTypes = prevTypes.slice(1);
-      const last = prevTypes[prevTypes.length - 1];
-      const newValue = last * 2;
-      newTypes.push(newValue);
-      return newTypes;
-    });
-    setLevel((prevLevel) => prevLevel + 1);
-
-    // Radera alla block med den gamla lägsta siffran
-    setGrid((prevGrid) => {
-      const oldLowest = blockTypes[0];
-      const newGrid = prevGrid.map((row) =>
-        row.map((cell) => {
-          if (cell && cell.value === oldLowest) {
-            return null;
-          }
-          return cell;
-        })
-      );
-      return newGrid;
-    });
-  };
-
   const createGrid = () => {
     return grid.map((rowData, rowIndex) => (
       <View key={rowIndex} style={styles.row}>
-        {rowData.map((cellData, columnIndex) => (
-          <TouchableOpacity
-            key={`${rowIndex}-${columnIndex}`}
-            style={styles.cell}
-            onPress={() => addBlockToColumn(columnIndex)}
-          >
-            {cellData && cellData.value ? <Block value={cellData.value} /> : null}
-          </TouchableOpacity>
-        ))}
+        {rowData.map((cellData, columnIndex) => {
+          let showGlow = false;
+          // Kontrollera om blocket matchar aktuell nivå för att visa glödande ram
+          if (cellData && cellData.value && cellData.value === 256) {
+            showGlow = true;
+          }
+
+          return (
+            <TouchableOpacity
+              key={`${rowIndex}-${columnIndex}`}
+              style={styles.cell}
+              onPress={() => addBlockToColumn(columnIndex)}
+            >
+              {cellData && cellData.value ? (
+                <Block
+                  value={cellData.value}
+                  isNew={cellData.isNew}
+                  showGlow={showGlow}
+                />
+              ) : null}
+            </TouchableOpacity>
+          );
+        })}
       </View>
     ));
   };
@@ -205,9 +226,13 @@ const GameBoard = ({ onBlockPlaced, setScore, currentBlockValue }) => {
   return (
     <View style={styles.container}>
       {createGrid()}
+      {/* Visa kedjereaktionsmultiplikatorn */}
+      {chainMultiplier > 1 && (
+        <Text style={styles.chainText}>x{chainMultiplier}</Text>
+      )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -224,6 +249,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 5,
+  },
+  chainText: {
+    position: 'absolute',
+    top: '50%',
+    alignSelf: 'center',
+    fontSize: 48,
+    color: 'yellow',
+    fontWeight: 'bold',
+    textShadowColor: 'black',
+    textShadowRadius: 10,
   },
 });
 

@@ -1,28 +1,46 @@
 // src/components/Block.js
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import * as Animatable from 'react-native-animatable';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Text, StyleSheet } from 'react-native';
 import { getBlockStyle, getTextColor } from './blockStyles';
+import Svg, { Rect, Defs, RadialGradient, Stop } from 'react-native-svg';
 
-const Block = React.memo(({ value }) => {
+const Block = React.memo(({ value, isNew, showGlow }) => {
   if (value === null || value === undefined || isNaN(value)) {
     return null;
   }
 
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 5,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
   const blockStyles = [
     styles.block,
     getBlockStyle(value),
+    { transform: [{ scale: scaleAnim }] },
   ];
 
   return (
-    <Animatable.View
-      animation="fadeIn"
-      duration={300}
-      style={blockStyles}
-    >
+    <Animated.View style={blockStyles}>
+      {showGlow && (
+        <Svg style={styles.glow} width="100%" height="100%">
+          <Defs>
+            <RadialGradient id="grad" cx="50%" cy="50%" rx="50%" ry="50%">
+              <Stop offset="0%" stopColor="rgba(255, 215, 0, 0.8)" />
+              <Stop offset="100%" stopColor="transparent" />
+            </RadialGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#grad)" />
+        </Svg>
+      )}
       <Text style={[styles.text, { color: getTextColor(value) }]}>{value}</Text>
-    </Animatable.View>
+    </Animated.View>
   );
 });
 
@@ -33,15 +51,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 2,
+    position: 'relative',
+    overflow: 'hidden',
   },
   text: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  glow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 48,
+    height: 48,
   },
 });
 
